@@ -8,8 +8,8 @@ Este servicio valida transacciones financieras según reglas anti-fraude y actua
 
 ### Reglas de Validación Anti-Fraude
 
-- **Rechazo por monto:** Transacciones con valor mayor a $2,000
-- **Rechazo por límite diario:** Si el acumulado diario de transacciones (solo aquellas con estado `approved` o `pending`) para una cuenta origen, más el valor de la transacción actual, supera $20,000, la transacción es rechazada
+- **Rechazo por monto:** Transacciones con valor mayor a 2000
+- **Rechazo por límite diario:** Si el acumulado diario de transacciones (solo aquellas con estado `approved` o `pending`) para una cuenta origen, más el valor de la transacción actual, supera 20000, la transacción es rechazada
 - **Aprobación:** Transacciones que cumplen ambas reglas
 
 > **Nota:** Las transacciones con estado `rejected` no afectan el cálculo del acumulado diario.
@@ -33,6 +33,7 @@ AntiFraudService/
 │   ├── AntiFraudService.Domain/      # Entidades y lógica de dominio
 │   ├── AntiFraudService.Infrastructure/ # Acceso a datos y servicios externos
 │   ├── AntiFraudService.Worker/      # Procesamiento asíncrono (Kafka Consumer)
+│   ├── AntiFraudService.Tests/       # Tests unitarios
 ├── docker-compose.yml          # Configuración de contenedores
 ├── README.md                   # Documentación
 └── .gitignore                 # Archivos ignorados por Git
