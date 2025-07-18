@@ -1,0 +1,165 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  POSTGRES_VERSION: '14'
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:${{ env.POSTGRES_VERSION }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: antifraud_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      zookeeper:
+        image: confluentinc/cp-zookeeper:5.5.3
+        env:
+          ZOOKEEPER_CLIENT_PORT: 2181
+        ports:
+          - 2181:2181
+      
+      kafka:
+        image: confluentinc/cp-enterprise-kafka:5.5.3
+        depends_on: zookeeper
+        env:
+          KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+          KAFKA_BROKER_ID: 1
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+        ports:
+          - 9092:9092
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore AntiFraudService/AntiFraudService.sln
+    
+    - name: Build
+      run: dotnet build AntiFraudService/AntiFraudService.sln --no-restore --configuration Release
+    
+    - name: Run tests
+      run: dotnet test AntiFraudService/AntiFraudService.sln --no-build --verbosity normal --configuration Release
+    
+    - name: Run integration tests
+      run: |
+        dotnet test AntiFraudService/AntiFraudService.sln --no-build --verbosity normal --configuration Release --filter "Category=Integration"
+      env:
+        ASPNETCORE_ENVIRONMENT: Test
+        CONNECTION_STRINGS__DEFAULTCONNECTION: "Host=localhost;Port=5432;Database=antifraud_db;Username=postgres;Password=postgres"
+        KAFKA__BOOTSTRAPSERVERS: "localhost:9092"
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: |
+          **/TestResults/
+          **/coverage/
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: |
+          AntiFraudService/src/AntiFraudService.API/bin/Release/
+          AntiFraudService/src/AntiFraudService.Worker/bin/Release/
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Run security scan
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push API image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./AntiFraudService
+        file: ./AntiFraudService/Dockerfile.api
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/antifraud-api:latest
+          ${{ secrets.DOCKER_USERNAME }}/antifraud-api:${{ github.sha }}
+    
+    - name: Build and push Worker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./AntiFraudService
+        file: ./AntiFraudService/Dockerfile.worker
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/antifraud-worker:latest
+          ${{ secrets.DOCKER_USERNAME }}/antifraud-worker:${{ github.sha }}
+
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security-scan]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+    - name: Deploy to staging
+      run: echo "Deploying to staging environment"
+      # Aquí irían los comandos específicos para tu infraestructura de staging
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [build-and-test, security-scan, docker-build]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Deploy to production
+      run: echo "Deploying to production environment"
+      # Aquí irían los comandos específicos para tu infraestructura de producción 
