@@ -51,7 +51,8 @@ public class Worker : BackgroundService
                     var dailyTotal = db.Transactions
                         .Where(t => t.SourceAccountId == transaction.SourceAccountId 
                                  && t.CreatedAt.Date == transaction.CreatedAt.Date
-                                 && t.Id != transaction.Id) 
+                                 && t.Id != transaction.Id
+                                 && (t.Status == "approved" || t.Status == "pending"))
                         .Sum(t => t.Value);
 
                     newStatus = policy.ValidateTransaction(transaction.Value, dailyTotal);
