@@ -58,7 +58,7 @@ public class Worker : BackgroundService
                             .Where(t => t.SourceAccountId == transaction.SourceAccountId && t.CreatedAt.Date == transaction.CreatedAt.Date)
                             .Sum(t => t.Value);
 
-                        if (dailyTotal > 20000)
+                        if (dailyTotal + transaction.Value > 20000)
                             newStatus = "rejected";
                     }
 

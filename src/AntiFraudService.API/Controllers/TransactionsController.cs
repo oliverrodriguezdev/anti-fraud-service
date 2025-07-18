@@ -24,8 +24,8 @@ public class TransactionsController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var id = await _transactionService.CreateTransactionAsync(dto);
-        return CreatedAtAction(nameof(GetTransaction), new { id }, null);
+        var response = await _transactionService.CreateTransactionAsync(dto);
+        return CreatedAtAction(nameof(GetTransaction), new { id = response.TransactionExternalId }, response);
     }
 
     /// <summary>

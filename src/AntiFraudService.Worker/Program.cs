@@ -35,7 +35,7 @@ Log.Information("Worker configured for environment: {Environment}", environment)
 try
 {
     Log.Information("Starting Worker...");
-    host.Run();
+host.Run();
 }
 catch (Exception ex)
 {

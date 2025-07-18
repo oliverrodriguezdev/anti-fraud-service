@@ -21,7 +21,7 @@ public class TransactionService : ITransactionService
         _logger = logger;
     }
 
-    public async Task<Guid> CreateTransactionAsync(CreateTransactionDto dto)
+    public async Task<CreateTransactionResponseDto> CreateTransactionAsync(CreateTransactionDto dto)
     {
         var transaction = new Transaction
         {
@@ -45,7 +45,11 @@ public class TransactionService : ITransactionService
 
         _logger.LogInformation("Transaction published to Kafka successfully");
 
-        return transaction.Id;
+        return new CreateTransactionResponseDto
+        {
+            TransactionExternalId = transaction.Id,
+            CreatedAt = transaction.CreatedAt
+        };
     }
 
     public async Task<Transaction?> GetTransactionAsync(Guid id)
