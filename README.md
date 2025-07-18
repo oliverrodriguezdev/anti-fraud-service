@@ -159,24 +159,34 @@ Content-Type: application/json
 **Respuesta:**
 ```json
 {
-  "id": "guid-de-la-transaccion"
+  "transactionExternalId": "guid-de-la-transaccion",
+  "createdAt": "2024-01-01T00:00:00Z"
 }
 ```
 
 ### Consultar Transacción
 ```http
-GET http://localhost:5000/api/transactions/{id}
+GET http://localhost:5000/api/transactions/{transactionExternalId}
 ```
 
 **Respuesta:**
 ```json
 {
-  "id": "guid",
-  "sourceAccountId": "11111111-1111-1111-1111-111111111111",
-  "targetAccountId": "22222222-2222-2222-2222-222222222222",
-  "transferTypeId": 1,
-  "value": 120,
-  "createdAt": "2024-01-01T00:00:00Z",
-  "status": "approved"
+  "transactionExternalId": "guid",
+  "createdAt": "2024-01-01T00:00:00Z"
 }
 ```
+
+## 🧪 Pruebas Unitarias
+
+El proyecto incluye tests unitarios para la lógica anti-fraude (reglas de validación de transacciones) en la capa de dominio.
+
+### Ejecutar los tests
+
+Desde la raíz del proyecto:
+
+```bash
+dotnet test
+```
+
+Esto ejecutará todos los tests definidos en `src/AntiFraudService.Tests`.

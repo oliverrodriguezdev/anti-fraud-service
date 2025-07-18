@@ -41,48 +41,36 @@ public class Worker : BackgroundService
                     }
 
                     // Validación anti-fraude
-                    string newStatus = "approved";
-                    if (transaction.Value > 2000)
-                    {
-                        newStatus = "rejected";
-                    }
-                    else
-                    {
-                        // Acumulado diario
-                        using var db = new AppDbContext(
-                            new DbContextOptionsBuilder<AppDbContext>()
-                                .UseNpgsql(_configuration.GetConnectionString("DefaultConnection"))
-                                .Options);
-
-                        var dailyTotal = db.Transactions
-                            .Where(t => t.SourceAccountId == transaction.SourceAccountId && t.CreatedAt.Date == transaction.CreatedAt.Date)
-                            .Sum(t => t.Value);
-
-                        if (dailyTotal + transaction.Value > 20000)
-                            newStatus = "rejected";
-                    }
-
-                    // Actualizar estado en la base de datos
-                    using (var db = new AppDbContext(
+                    var policy = new AntiFraudService.Domain.Services.AntiFraudPolicy();
+                    string newStatus;
+                    using var db = new AppDbContext(
                         new DbContextOptionsBuilder<AppDbContext>()
                             .UseNpgsql(_configuration.GetConnectionString("DefaultConnection"))
-                            .Options))
-                    {
-                        var tx = db.Transactions.FirstOrDefault(t => t.Id == transaction.Id);
-                        if (tx != null)
-                        {
-                            tx.Status = newStatus;
-                            await db.SaveChangesAsync();
-                            _logger.LogInformation("Transacción {id} actualizada a {status}", tx.Id, tx.Status);
+                            .Options);
 
-                            // Publicar el resultado en el topic "transactions-status"
-                            await _publisher.PublishAsync("transactions-status", new
-                            {
-                                TransactionId = tx.Id,
-                                Status = tx.Status,
-                                UpdatedAt = DateTime.UtcNow
-                            }, stoppingToken);
-                        }
+                    var dailyTotal = db.Transactions
+                        .Where(t => t.SourceAccountId == transaction.SourceAccountId 
+                                 && t.CreatedAt.Date == transaction.CreatedAt.Date
+                                 && t.Id != transaction.Id) 
+                        .Sum(t => t.Value);
+
+                    newStatus = policy.ValidateTransaction(transaction.Value, dailyTotal);
+
+                    // Actualizar estado en la base de datos usando la misma instancia de db
+                    var tx = db.Transactions.FirstOrDefault(t => t.Id == transaction.Id);
+                    if (tx != null)
+                    {
+                        tx.Status = newStatus;
+                        await db.SaveChangesAsync();
+                        _logger.LogInformation("Transacción {id} actualizada a {status}", tx.Id, tx.Status);
+
+                        // Publicar el resultado en el topic "transactions-status"
+                        await _publisher.PublishAsync("transactions-status", new
+                        {
+                            TransactionId = tx.Id,
+                            Status = tx.Status,
+                            UpdatedAt = DateTime.UtcNow
+                        }, stoppingToken);
                     }
                 }
                 catch (Exception ex)
